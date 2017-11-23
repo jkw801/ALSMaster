@@ -4,6 +4,6 @@ I am a master of ALS
 
 Please change Alshistory.csv to ALSHistory_r.csv that I uploaded
 
-Now, There are 5 script.
-firstscript,secondscript,thirdscript,fourthsccript is just for data processing.
-test is for measuring model performance by c-index and so on.
+Now, there are 5 scripts.
+firstscript,secondscript,thirdscript,fourthsccript are just for data processing.
+test script is for validating model performance.

@@ -18,7 +18,7 @@ for ( i in 1:length(Breathing)) {
 }
 ALSMITOS <- Movement + Swallowing + Communicating + Breathing
 alsfrs <- mutate(alsfrs,Movement,Swallowing,Communicating,Breathing,ALSMITOS)
-alsfrs$subject_id<-factor(alsfrs$subject_id)가
+alsfrs$subject_id<-factor(alsfrs$subject_id)
 
 # 각 item 3점 스케일로 변화. (지워도 될듯)
 alsfrs <- mutate(alsfrs, q1r=NA,q2r=NA,q3r=NA,q4r=NA,q6r=NA,q7r=NA,q8r=NA,q9r=NA)

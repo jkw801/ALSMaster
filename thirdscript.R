@@ -1,29 +1,61 @@
 library(survival)
 
+
+#  Age,Sex,Riluzole 변수 추가.
 demographics<-read.csv("demographics.csv")
 riluzole <- read.csv("Riluzole.csv")
 
-#  Age,Sex,Riluzole 변수 추가.
+## Age
+demographics$Age[is.na(demographics$Age)]=-demographics$Date_of_Birth[is.na(demographics$Age)]/365.25
+
+## Sex 변수가 정제가 안되어 있길래 살짝 수정
+demographics$Sex[demographics$Sex==""]=NA
+demographics$Sex <- droplevels(demographics$Sex)
+
 demographics_sub <- subset(demographics, select=c("subject_id","Age","Sex"))
 riluzole_sub <- subset(riluzole, select=c("subject_id","Subject_used_Riluzole"))
-merge2 <- merge(merge1,demographics_sub,by="subject_id",all.x=TRUE)
-merge2 <- merge(merge2, riluzole_sub,by="subject_id",all.x=TRUE)
-merge2 <- merge2[order(merge2$movement_whenevent),]
 
-# Sex 변수가 정제가 안되어 있길래 살짝 수정
-merge2$Sex <- droplevels(merge2$Sex)
-
-# DiagnosisDelta >0인 것들은 오류일테니 NA처
-merge2$Diagnosis_Delta[merge2$Diagnosis_Delta>0]=NA
-
+movement_merge2 <- merge(merge(movement_merge1,demographics_sub,by="subject_id",all.x=TRUE), riluzole_sub,by="subject_id",all.x=TRUE)
+movement_merge2$OnsetAge <- movement_merge2$Age +movement_merge2$Onset_Delta/365.25
+swallowing_merge2 <- merge(merge(swallowing_merge1,demographics_sub,by="subject_id",all.x=TRUE), riluzole_sub,by="subject_id",all.x=TRUE)
+swallowing_merge2$OnsetAge <- swallowing_merge2$Age +swallowing_merge2$Onset_Delta/365.25
+communicating_merge2 <- merge(merge(communicating_merge1,demographics_sub,by="subject_id",all.x=TRUE), riluzole_sub,by="subject_id",all.x=TRUE)
+communicating_merge2$OnsetAge <- communicating_merge2$Age +communicating_merge2$Onset_Delta/365.25
+breathing_merge2 <- merge(merge(breathing_merge1,demographics_sub,by="subject_id",all.x=TRUE), riluzole_sub,by="subject_id",all.x=TRUE)
+breathing_merge2$OnsetAge <- breathing_merge2$Age +breathing_merge2$Onset_Delta/365.25
+death_merge2 <- merge(merge(death_merge1,demographics_sub,by="subject_id",all.x=TRUE), riluzole_sub,by="subject_id",all.x=TRUE)
+death_merge2$OnsetAge <- death_merge2$Age +death_merge2$Onset_Delta/365.25
 
 # 이 아래들은 Onsetsite, Sex, Riluzole 변수에 따라 KM곡선그리고 log-rank test 해본 것
 # 그냥 궁금해서 해본 것. 연구에 도움은 안됨
-surv.by.onsetsite = survfit(Surv(movement_whenevent,movement_isevent==1)~Onsetsite,data=merge2)
-plot(surv.by.onsetsite,xlab="Time",ylab="Survival",col=c("black","red","blue","Green"),lty=c(1,1,1,1), main="Kaplan-Meier Surival vs. Onsetsite in ALS")
-legend(1300,.9, c("Bulbar","Limb","Limb&Bulbar","Other"),col=c("black","red","blue","Green"),lty=c(1,1,1,1))
-surv.diff.by.onsetsite=survdiff(Surv(movement_whenevent,movement_isevent==1)~Onsetsite,data=merge2)
-surv.diff.by.onsetsite
+movement.by.onsetsite = survfit(Surv(when,is==1)~Onsetsite,data=movement_merge2)
+plot(movement.by.onsetsite,xlab="Time",ylab="Survival",col=c("black","red","blue","Green"),main="Movement vs. Onsetsite in ALS")
+legend("topright",lwd=2,bty="n", c("Bulbar","Limb","Limb&Bulbar","Other"),col=c("black","red","blue","Green"))
+survdiff(Surv(when,is==1)~Onsetsite,data=movement_merge2)
+
+swallowing.by.onsetsite = survfit(Surv(when,is==1)~Onsetsite,data=swallowing_merge2)
+plot(swallowing.by.onsetsite,xlab="Time",ylab="Survival",col=c("black","red","blue","Green"),main="Swallowing vs. Onsetsite in ALS")
+legend("topright",lwd=2,bty="n", c("Bulbar","Limb","Limb&Bulbar","Other"),col=c("black","red","blue","Green"))
+survdiff(Surv(when,is==1)~Onsetsite,data=swallowing_merge2)
+
+communicating.by.onsetsite = survfit(Surv(when,is==1)~Onsetsite,data=communicating_merge2)
+plot(communicating.by.onsetsite,xlab="Time",ylab="Survival",col=c("black","red","blue","Green"), main="Communicating vs. Onsetsite in ALS")
+legend("topright",lwd=2,bty="n", c("Bulbar","Limb","Limb&Bulbar","Other"),col=c("black","red","blue","Green"))
+survdiff(Surv(when,is==1)~Onsetsite,data=communicating_merge2)
+
+breathing.by.onsetsite = survfit(Surv(when,is==1)~Onsetsite,data=breathing_merge2)
+plot(breathing.by.onsetsite,xlab="Time",ylab="Survival",col=c("black","red","blue","Green"), main="Breathing vs. Onsetsite in ALS")
+legend("topright",lwd=2,bty="n", c("Bulbar","Limb","Limb&Bulbar","Other"),col=c("black","red","blue","Green"))
+survdiff(Surv(when,is==1)~Onsetsite,data=breathing_merge2)
+
+death.by.onsetsite = survfit(Surv(when,is==1)~Onsetsite,data=death_merge2)
+plot(death.by.onsetsite,xlab="Time",ylab="Survival",col=c("black","red","blue","Green"), main="Death vs. Onsetsite in ALS")
+legend("topright",lwd=2,bty="n", c("Bulbar","Limb","Limb&Bulbar","Other"),col=c("black","red","blue","Green"))
+survdiff(Surv(when,is==1)~Onsetsite,data=death_merge2)
+
+
+# up to here
+
 surv.by.sex=survfit(Surv(movement_whenevent,movement_isevent==1)~Sex,data=merge2)
 plot(surv.by.sex,xlab="Time",ylab="Survival",col=c("black","red"),lty=c(1,1), main="Kaplan-Meier Surival vs. Sex in ALS")
 legend(1300,.9, c("Female","Male"),col=c("black","red"),lty=c(1,1))

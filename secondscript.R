@@ -38,7 +38,23 @@ for (i in 1:length(alshistory$subject_id))
 }
 alshistory$Onsetsite <- factor(alshistory$Onsetsite)
 
-# 생존분석table에 onsetsite,OnsetDelta,DiagnosisDelta 변수 추가
-alshistory_sub <- subset(alshistory, subset=!is.na(Onsetsite),select=c(subject_id, Onsetsite,Onset_Delta,Diagnosis_Delta))
-merge1 <- merge(movement_survival_sub,alshistory_sub,by="subject_id",all.x=TRUE)
-merge1 <- merge1[order(merge1$movement_whenevent),]
+
+# DiagnosisDelta >0인 것들은 오류일테니 NA처리
+alshistory$Diagnosis_Delta[alshistory$Diagnosis_Delta>0]=NA
+
+# Make 'Mode' function
+Mode <- function(x){
+  x <- x[!is.na(x)]
+  uqx <- unique(x)
+  uqx[which.max(tabulate(match(x,uqx)))]
+}
+
+alshistory_sub <- summarize(group_by(alshistory,subject_id),Onsetsite=Mode(Onsetsite),Onset_Delta=Mode(Onset_Delta),Diagnosis_Delta=Mode(Diagnosis_Delta))
+
+# 생존분석table에 onsetsite,OnsetDelta,DiagnosisDelta,Diagnostic delay 변수 추가
+alshistory_sub$Diagnostic_delay=alshistory_sub$Diagnosis_Delta-alshistory_sub$Onset_Delta
+movement_merge1 <- merge(movement_survival_sub,alshistory_sub,by="subject_id",all.x=TRUE)
+swallowing_merge1 <- merge(swallowing_survival_sub,alshistory_sub,by="subject_id",all.x=TRUE)
+communicating_merge1 <- merge(communicating_survival_sub,alshistory_sub,by="subject_id",all.x=TRUE)
+breathing_merge1 <- merge(breathing_survival_sub,alshistory_sub,by="subject_id",all.x=TRUE)
+death_merge1 <- merge(death_survival_sub,alshistory_sub,by="subject_id",all.x=TRUE)

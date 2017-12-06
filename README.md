@@ -2,18 +2,15 @@
 I am a master of ALS
 
 
-Please change Alshistory.csv to ALSHistory_r.csv that I uploaded
-
-
 Now, there are 5 scripts.
+The order of scrips is "SurvivalTable", "Datacleaning", "Imputation", "Models", "Clustering".
 
-firstscript and first2script are for making a table for survival analysis and plotting K-M curves for 4 domains and death.
+"SurvivalTable" is for making a table for survival analysis and plotting K-M curves for 4 functional domains and death.
 
-second~fourth script are just for adding variables. It is a boring course.
+"Datacleaning" is for adding variables.
 
-movement, swallowing, communicating, breathing, death script are for making survival models and validating the performances. 
+"Imputation" is for imputation.
 
-allall script is for integrating 5 models' results and is ongoing.
+"Models" is for making survival models and validating the performances. 
 
-
-I have made good models.
+"Clustering" is for integrating 5 models' results and clustering patietns based on probability at 12 month in 5 domains 

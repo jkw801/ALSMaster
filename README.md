@@ -1,5 +1,5 @@
 # ALSMaster
-I am studyting "Predicting survival and loss of physical functions in ALS applying machine learning".
+I am studying "Predicting survival and loss of physical functions in ALS applying machine learning".
 
 
 Now, there are 5 scripts.

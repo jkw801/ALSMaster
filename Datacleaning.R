@@ -1,4 +1,4 @@
-library(dplyr)
+
 # data.allforms 이용
 data = droplevels(data.allforms[data.allforms$form_name != "ALSFRS" & data.allforms$form_name != "Adverse Event" & data.allforms$form_name != "Concomitant Medication",] )
 
@@ -28,7 +28,6 @@ for ( i in featnames1) {
   databyfeature[[i]]$feature_delta=as.numeric(as.character(databyfeature[[i]]$feature_delta))
 }
 
-###############################이 아래부터 돌리자.
 
 feature_92 <- list()
 # static feature
@@ -61,28 +60,26 @@ dfeat=setdiff(featnames1,sfeat)
 # dynamic feature
 ## 우선 ALSFRS form 부터
 alsfrs92 <- droplevels(filter(alsfrsfull,feature_delta<92&feature_delta>=0))
-feature_92[["Q1_Speech"]] <- summarize(group_by(alsfrs92,SubjectID),q1_min=min(Q1_Speech,na.rm=TRUE))
-feature_92[["Q2_Salivation"]] <- summarize(group_by(alsfrs92,SubjectID),q2_min=min(Q2_Salivation,na.rm=TRUE))
-feature_92[["Q3_Swallowing"]] <- summarize(group_by(alsfrs92,SubjectID),q3_min=min(Q3_Swallowing,na.rm=TRUE))
-feature_92[["Q4_Handwriting"]] <- summarize(group_by(alsfrs92,SubjectID),q4_min=min(Q4_Handwriting,na.rm=TRUE))
-feature_92[["Q5_Cutting"]] <- summarize(group_by(alsfrs92,SubjectID),q5_min=min(Q5_Cutting,na.rm=TRUE))
-feature_92[["Q6_Dressing_and_Hygiene"]] <- summarize(group_by(alsfrs92,SubjectID),q6_min=min(Q6_Dressing_and_Hygiene,na.rm=TRUE))
-feature_92[["Q7_Turning_in_Bed"]] <- summarize(group_by(alsfrs92,SubjectID),q7_min=min(Q7_Turning_in_Bed,na.rm=TRUE))
-feature_92[["Q8_Walking"]] <- summarize(group_by(alsfrs92,SubjectID),q8_min=min(Q8_Walking,na.rm=TRUE))
-feature_92[["Q9_Climbing_Stairs"]] <- summarize(group_by(alsfrs92,SubjectID),q9_min=min(Q9_Climbing_Stairs,na.rm=TRUE))
-feature_92[["Q10"]] <- summarize(group_by(alsfrs92,SubjectID),q10_min=min(respiratory,na.rm=TRUE))
-feature_92[["ALSFRS_TotalR"]] <- summarize(group_by(alsfrs92,SubjectID),total_min=min(ALSFRS_TotalR,na.rm=TRUE))
-feature_92[["Q10R"]] <- summarize(group_by(alsfrs92,SubjectID),q10r_min=min(Q10R,na.rm=TRUE))
-feature_92[["ALSMITOS"]]<- summarize(group_by(alsfrs92,SubjectID),alsmitos=max(ALSMITOS,na.rm=TRUE))
-feature_92[["ALSMITOS"]]$alsmitos <- factor(feature_92[["ALSMITOS"]]$alsmitos,order=TRUE)
-feature_92[["KINGS"]]<- summarize(group_by(alsfrs92,SubjectID),kings=max(kings,na.rm=TRUE))
-feature_92[["KINGS"]]$kings <- factor(feature_92[["KINGS"]]$kings,order=TRUE)
-feature_92[["Multibublar"]] <- summarize(group_by(alsfrs92,SubjectID),multibublar_min=min(multibulbar,na.rm=TRUE))
-feature_92[["Multimotor"]] <- summarize(group_by(alsfrs92,SubjectID),multimotor_min=min(multimotor,na.rm=TRUE))
-feature_92[["Multirespi"]] <- summarize(group_by(alsfrs92,SubjectID),multirespi_min=min(multirespi,na.rm=TRUE))
+feature_92[["Q1_Speech"]] <- summarize(group_by(alsfrs92,SubjectID),Q1=min(Q1_Speech,na.rm=TRUE))
+feature_92[["Q2_Salivation"]] <- summarize(group_by(alsfrs92,SubjectID),Q2=min(Q2_Salivation,na.rm=TRUE))
+feature_92[["Q3_Swallowing"]] <- summarize(group_by(alsfrs92,SubjectID),Q3=min(Q3_Swallowing,na.rm=TRUE))
+feature_92[["Q4_Handwriting"]] <- summarize(group_by(alsfrs92,SubjectID),Q4=min(Q4_Handwriting,na.rm=TRUE))
+feature_92[["Q5_Cutting"]] <- summarize(group_by(alsfrs92,SubjectID),Q5=min(Q5_Cutting,na.rm=TRUE))
+feature_92[["Q6_Dressing_and_Hygiene"]] <- summarize(group_by(alsfrs92,SubjectID),Q6=min(Q6_Dressing_and_Hygiene,na.rm=TRUE))
+feature_92[["Q7_Turning_in_Bed"]] <- summarize(group_by(alsfrs92,SubjectID),Q7=min(Q7_Turning_in_Bed,na.rm=TRUE))
+feature_92[["Q8_Walking"]] <- summarize(group_by(alsfrs92,SubjectID),Q8=min(Q8_Walking,na.rm=TRUE))
+feature_92[["Q9_Climbing_Stairs"]] <- summarize(group_by(alsfrs92,SubjectID),Q9=min(Q9_Climbing_Stairs,na.rm=TRUE))
+feature_92[["Q10"]] <- summarize(group_by(alsfrs92,SubjectID),Q10=min(respiratory,na.rm=TRUE))
+feature_92[["ALSFRS_TotalR"]] <- summarize(group_by(alsfrs92,SubjectID),ALSFRS_Total=min(ALSFRS_TotalR,na.rm=TRUE))
+feature_92[["Q10R"]] <- summarize(group_by(alsfrs92,SubjectID),Q10R=min(Q10R,na.rm=TRUE))
+feature_92[["ALSMITOS"]]<- summarize(group_by(alsfrs92,SubjectID),MITOS=max(ALSMITOS,na.rm=TRUE))
+feature_92[["ALSMITOS"]]$MITOS <- factor(feature_92[["ALSMITOS"]]$MITOS,order=TRUE)
+feature_92[["KINGS"]]<- summarize(group_by(alsfrs92,SubjectID),KINGS=max(kings,na.rm=TRUE))
+feature_92[["KINGS"]]$KINGS <- factor(feature_92[["KINGS"]]$KINGS,order=TRUE)
+feature_92[["Multibublar"]] <- summarize(group_by(alsfrs92,SubjectID),multibublar=min(multibulbar,na.rm=TRUE))
+feature_92[["Multimotor"]] <- summarize(group_by(alsfrs92,SubjectID),multimotor=min(multimotor,na.rm=TRUE))
+feature_92[["Multirespi"]] <- summarize(group_by(alsfrs92,SubjectID),multirespi=min(multirespi,na.rm=TRUE))
 
-
-### total : Q5,Q10 ,      Q10 how?
 
 #### 아래는 preslope 만들기
 preslope<-mutate(group_by(alsfrs92,SubjectID),rank=rank(-feature_delta))
@@ -92,21 +89,21 @@ preslope <- as.data.frame(preslope)
 
 temp <- list()
 temp[["preslope"]]=merge(feature_92[["onset_delta"]],preslope,all=TRUE)
-temp[["preslope"]]$preslope=(temp[["preslope"]]$ALSFRS_TotalR-39)/(temp[["preslope"]]$feature_delta-temp[["preslope"]]$onset_delta)
-temp[["preslope"]]$preslope=temp[["preslope"]]$preslope * 30.5
-temp[["preslope"]] <- temp[["preslope"]][,c("SubjectID","preslope")]
+temp[["preslope"]]$Preslope=(temp[["preslope"]]$ALSFRS_TotalR-39)/(temp[["preslope"]]$feature_delta-temp[["preslope"]]$onset_delta)
+temp[["preslope"]]$Preslope=temp[["preslope"]]$Preslope * 30.5
+temp[["preslope"]] <- temp[["preslope"]][,c("SubjectID","Preslope")]
 feature_92[["preslope"]]=temp[["preslope"]]
 
 #### 아래는 onsetage 만들기
 temp[["onsetage"]]=merge(feature_92[["Age"]],feature_92[["onset_delta"]],all=TRUE)
 medianonset=median(feature_92[["onset_delta"]]$onset_delta)
-temp[["onsetage"]]$onsetage=temp[["onsetage"]]$Age +temp[["onsetage"]]$onset_delta/365.25
-temp[["onsetage"]][is.na(temp[["onsetage"]]$onsetage),]$onsetage=temp[["onsetage"]][is.na(temp[["onsetage"]]$onsetage),]$Age +medianonset/365.25
+temp[["onsetage"]]$OnsetAge=temp[["onsetage"]]$Age +temp[["onsetage"]]$onset_delta/365.25
+temp[["onsetage"]][is.na(temp[["onsetage"]]$OnsetAge),]$OnsetAge=temp[["onsetage"]][is.na(temp[["onsetage"]]$OnsetAge),]$Age +medianonset/365.25
 
-temp[["onsetage"]] <- temp[["onsetage"]][,c("SubjectID","onsetage")]
+temp[["onsetage"]] <- temp[["onsetage"]][,c("SubjectID","OnsetAge")]
 feature_92[["onsetage"]]=temp[["onsetage"]]
 
-## 그 밖에 feature
+## 그 밖 feature
 ### 먼저 단위 통일 안된 feature 찾기.
 num_unit <- list()
 for (i in dfeat) {
@@ -156,7 +153,7 @@ for (i in dfeat){
 
 #feature_92[["ALSslope"]]=data.ALSslope
 
-## 63 variables fullmerge!!! -> left join to movement...etc...
+## 63 variables fullmerge!!! 
 names(feature_92[["Red Blood Cells (RBC)"]])=c("SubjectID","RBC")
 names(feature_92[["Absolute Basophil Count"]])=c("SubjectID","Abasophil")
 names(feature_92[["Absolute Eosinophil Count"]])=c("SubjectID","Aeosinophil")
@@ -166,10 +163,10 @@ names(feature_92[["Absolute Neutrophil Count"]])=c("SubjectID","Aneutrophil")
 names(feature_92[["Alkaline Phosphatase"]])=c("SubjectID","ALP")
 names(feature_92[["ALT(SGPT)"]])=c("SubjectID","ALT")
 names(feature_92[["AST(SGOT)"]])=c("SubjectID","AST")
-names(feature_92[["Bilirubin (Total)"]])=c("SubjectID","Bilirubintotal")
+names(feature_92[["Bilirubin (Total)"]])=c("SubjectID","Bilirubin_Total")
 names(feature_92[["Blood Urea Nitrogen (BUN)"]])=c("SubjectID","BUN")
-names(feature_92[["Total Cholesterol"]])=c("SubjectID","Cholesteroltotal")
-names(feature_92[["Urine Ph"]])=c("SubjectID","urine_ph")
+names(feature_92[["Total Cholesterol"]])=c("SubjectID","Cholesterol_total")
+names(feature_92[["Urine Ph"]])=c("SubjectID","Urine_ph")
 names(feature_92[["White Blood Cell (WBC)"]])=c("SubjectID","WBC")
 names(feature_92[["Gamma-glutamyltransferase"]])=c("SubjectID","GGT")
 
@@ -179,3 +176,11 @@ for (i in 2:length(feature_92)){
   a=merge(a, feature_92[[i]],all=TRUE)
 }
 fullfeature=a
+
+rm(data)
+rm(data.allforms)
+rm(idnum)
+rm(databyfeature)
+rm(feature_92)
+rm(alsfrs92)
+gc()

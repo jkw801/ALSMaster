@@ -1,6 +1,10 @@
 library(dplyr)
 library(tidyr)
 library(survival)
+library(InformativeCensoring)
+rm(list=ls())
+gc()
+# 데이터 read
 data.allforms_training<-read.delim("all_forms_PROACT_training.txt",sep="|", header=T)
 data.allforms_training2<-read.delim("all_forms_PROACT_training2.txt",sep="|", header=T)
 data.allforms_leaderboard<-read.delim("all_forms_PROACT_leaderboard_full.txt",sep="|", header=T)
@@ -13,27 +17,43 @@ data.ALSslope_leaderboard<-read.delim("ALSFRS_slope_PROACT_leaderboard.txt",sep=
 data.ALSslope_validation<-read.delim("ALSFRS_slope_PROACT_validation.txt",sep="|", header=T) 
 data.ALSslope <-rbind(data.ALSslope_training,data.ALSslope_training2,data.ALSslope_leaderboard,data.ALSslope_validation)
 
+data.surv_training<-read.delim("surv_response_PROACT_training.txt",sep="|", header=T) 
+data.surv_training2<-read.delim("surv_response_PROACT_training2.txt",sep="|", header=T) 
+data.surv_leaderboard<-read.delim("surv_response_PROACT_leader.txt",sep="|", header=T) 
+data.surv_validation<-read.delim("surv_response_PROACT_validation.txt",sep="|", header=T) 
+death_survival <- rbind(data.surv_training,data.surv_training2,data.surv_leaderboard,data.surv_validation)
+death_survival$status <- as.logical(death_survival$status)
+
+
+# ALSFRS form만 불러오기
 data.alsfrs1 <- droplevels(data.allforms[data.allforms$form_name=="ALSFRS", ])
 data.alsfrs1 = subset(data.alsfrs1,select=-c(form_name,feature_unit))
 data.alsfrs1$feature_value <- as.numeric(as.character(data.alsfrs1$feature_value))
 data.alsfrs1$feature_delta <- as.numeric(as.character(data.alsfrs1$feature_delta))
-data.alsfrs1 <- subset(data.alsfrs1,!(SubjectID==137943 & feature_delta==371))
 
+
+# 같은 환자가 같은 시점에 2번 측정한 데이터 처리(평균) 
+data.alsfrs1 <- subset(data.alsfrs1,!(SubjectID==137943 & feature_delta==371))
 a <- mutate(group_by(data.alsfrs1,SubjectID,feature_name,feature_delta),n=n())
 b=subset(a,n>1)
 c=subset(a,n==1)
-
 c=subset(c,select=-n)
 b <- summarize(b,feature_value=mean(feature_value,na.rm=TRUE))
 c <- as.data.frame(c)
 b <- as.data.frame(b)
 d <- rbind(c,b)
+
+# spread 형태로 변환
 alsfrsfull <- spread(d,feature_name,feature_value)
 
+
+# feature_delta가 missing이거나 각 item 중 하나라도 missing이 있는 데이터 제외
 alsfrsfull <- droplevels(filter(alsfrsfull, !is.na(feature_delta)))
 alsfrsfull <- droplevels(filter(alsfrsfull,!is.na(Q1_Speech)&!is.na(Q2_Salivation)&!is.na(Q3_Swallowing)&!is.na(Q4_Handwriting)&(!(is.na(Q5a_Cutting_without_Gastrostomy)&is.na(Q5b_Cutting_with_Gastrostomy)))&!is.na(Q6_Dressing_and_Hygiene)&!is.na(Q7_Turning_in_Bed)&!is.na(Q8_Walking)&!is.na(Q9_Climbing_Stairs)&!(is.na(Q10_Respiratory)&(is.na(R1_Dyspnea)|is.na(R2_Orthopnea)|is.na(R3_Respiratory_Insufficiency)))))
 
 
+# Q10과 R1,R2,R3을 적절하게 고려하여 Q10R 점수로 변환
+# Q10R에 따라 ALSFRS_Total도 ALSFRS_TotalR로 변환
 alsfrsfull$Q10R1=ifelse(alsfrsfull$R1_Dyspnea==4,4,ifelse(alsfrsfull$R1_Dyspnea>1,3,ifelse(alsfrsfull$R1_Dyspnea>0,2,1)))
 alsfrsfull$Q10R3=ifelse(alsfrsfull$R3_Respiratory_Insufficiency==2,ifelse(alsfrsfull$R1_Dyspnea>1,2,1),ifelse(alsfrsfull$R3_Respiratory_Insufficiency<2 & alsfrsfull$R3_Respiratory_Insufficiency>0,1,ifelse(alsfrsfull$R3_Respiratory_Insufficiency==0,0,NA)))
 alsfrsfull$Q10R3[is.na(alsfrsfull$Q10R3)]=alsfrsfull$Q10R1[is.na(alsfrsfull$Q10R3)]  
@@ -42,21 +62,22 @@ alsfrsfull$Q10R=alsfrsfull$Q10R3
 alsfrsfull <- subset(alsfrsfull,select=-c(Q10R1,Q10R3))
 alsfrsfull$ALSFRS_TotalR = alsfrsfull$ALSFRS_Total - alsfrsfull$respiratory + alsfrsfull$Q10R
 
-# King's staging
+
+# King's staging 추가
 alsfrsfull$kingbulbar <- (alsfrsfull$Q1_Speech<4) | (alsfrsfull$Q2_Salivation<4) | (alsfrsfull$Q3_Swallowing<4) 
 alsfrsfull$kingulimb[is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)] <- (alsfrsfull$Q4_Handwriting[is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)]<4)
 alsfrsfull$kingulimb[!is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)] <- (alsfrsfull$Q4_Handwriting[!is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)]<4) | (alsfrsfull$Q5a_Cutting_without_Gastrostomy[!is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)]<4)
 alsfrsfull$kingllimb <- (alsfrsfull$Q8_Walking<4)
 alsfrsfull$kingnut <- !is.na(alsfrsfull$Q5b_Cutting_with_Gastrostomy)
 
-# revise needed below
+## revise needed below
 alsfrsfull$kingres <- (alsfrsfull$R1_Dyspnea==0) | (alsfrsfull$R3_Respiratory_Insufficiency<4)
 alsfrsfull$kingres[is.na(alsfrsfull$kingres)] <- (alsfrsfull$Q10_Respiratory[is.na(alsfrsfull$kingres)] <=1 )
 
 alsfrsfull$kings=ifelse(alsfrsfull$kingres==1 | alsfrsfull$kingnut==1,4,alsfrsfull$kingbulbar+alsfrsfull$kingllimb+alsfrsfull$kingulimb)
 
 
-## 3점스케일 후 Q1~Q3/Q4~Q9/Q10~Q12 3개 변수 추가해보자.
+# 3점스케일 변환 후  mean of Q1~Q3/Q4~Q9/Q10~Q12 : 변수 3개 추가
 alsfrsfull$temp1 <- ifelse(alsfrsfull$Q1_Speech==4,2,ifelse(alsfrsfull$Q1_Speech>=2,1,0))
 alsfrsfull$temp2 <- ifelse(alsfrsfull$Q2_Salivation==4,2,ifelse(alsfrsfull$Q2_Salivation>=2,1,0))
 alsfrsfull$temp3 <- ifelse(alsfrsfull$Q3_Swallowing==4,2,ifelse(alsfrsfull$Q3_Swallowing>=2,1,0))
@@ -66,8 +87,8 @@ alsfrsfull$temp6 <- ifelse(alsfrsfull$Q6_Dressing_and_Hygiene==4,2,ifelse(alsfrs
 alsfrsfull$temp7 <- ifelse(alsfrsfull$Q7_Turning_in_Bed==4,2,ifelse(alsfrsfull$Q7_Turning_in_Bed>=2,1,0))
 alsfrsfull$temp8 <- ifelse(alsfrsfull$Q8_Walking==4,2,ifelse(alsfrsfull$Q8_Walking>=2,1,0))
 alsfrsfull$temp9 <- ifelse(alsfrsfull$Q9_Climbing_Stairs==4,2,ifelse(alsfrsfull$Q9_Climbing_Stairs>=2,1,0))
-alsfrsfull$temp10 <- ifelse(alsfrsfull$Q10_Respiratory==4,2,ifelse(alsfrsfull$Q10_Respiratory>=2,1,0))
-alsfrsfull$temp11 <- ifelse(alsfrsfull$R1_Dyspnea==4,2,ifelse(alsfrsfull$R1_Dyspnea>=1,1,0))
+alsfrsfull$temp10 <- ifelse(alsfrsfull$Q10_Respiratory==4,2,ifelse(alsfrsfull$Q10_Respiratory>=3,1,0))
+alsfrsfull$temp11 <- ifelse(alsfrsfull$R1_Dyspnea==4,2,ifelse(alsfrsfull$R1_Dyspnea>=2,1,0))
 alsfrsfull$temp12 <- ifelse(alsfrsfull$R2_Orthopnea==4,2,ifelse(alsfrsfull$R2_Orthopnea>=2,1,0))
 alsfrsfull$temp13 <- ifelse(alsfrsfull$R3_Respiratory_Insufficiency==4,2,ifelse(alsfrsfull$R3_Respiratory_Insufficiency>=1,1,0))
 
@@ -78,160 +99,153 @@ alsfrsfull$multirespi[is.na(alsfrsfull$multirespi)]=alsfrsfull$temp11[is.na(alsf
 alsfrsfull <- subset(alsfrsfull,select=-c(temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13))
 
 
-# 4개의 functional domain ?????? 변??? 추???
-Movement <- (alsfrsfull$Q8_Walking<=1) | (alsfrsfull$Q6_Dressing_and_Hygiene<=1)
-Swallowing <- (alsfrsfull$Q3_Swallowing<=1)
-Communicating <- (alsfrsfull$Q1_Speech<=1) & (alsfrsfull$Q4_Handwriting<=1)
-Breathing <- (alsfrsfull$R1_Dyspnea<=1) | (alsfrsfull$R3_Respiratory_Insufficiency<=2)
-Breathing[is.na(Breathing)]=(alsfrsfull$Q10_Respiratory[is.na(Breathing)]<=2)
 
+# ALS MITOS 추가
+Movement <- (alsfrsfull$Q8_Walking <=1 | alsfrsfull$Q6_Dressing_and_Hygiene<=1)
+Swallowing <- (alsfrsfull$Q3_Swallowing <= 1 )
+Communicating <- (alsfrsfull$Q1_Speech<=1 & alsfrsfull$Q4_Handwriting <=1)
+Breathing <- (alsfrsfull$R1_Dyspnea<=1 | alsfrsfull$R3_Respiratory_Insufficiency<=2)
+Breathing[is.na(Breathing)]=(alsfrsfull$Q10_Respiratory[is.na(Breathing)]<=2)
 ALSMITOS <- Movement + Swallowing + Communicating + Breathing
 alsfrsfull <- mutate(alsfrsfull, Movement,Swallowing,Communicating,Breathing,ALSMITOS)
 
+### temporary 
+q1_last <- summarize(group_by(alsfrsfull,SubjectID),q1_last=Q1_Speech[feature_delta==max(feature_delta)])
+q2_last <- summarize(group_by(alsfrsfull,SubjectID),q2_last=Q2_Salivation[feature_delta==max(feature_delta)])
+q3_last <- summarize(group_by(alsfrsfull,SubjectID),q3_last=Q3_Swallowing[feature_delta==max(feature_delta)])
+q4_last <- summarize(group_by(alsfrsfull,SubjectID),q4_last=Q4_Handwriting[feature_delta==max(feature_delta)])
+q5_last <- summarize(group_by(alsfrsfull,SubjectID),q5_last=Q5_Cutting[feature_delta==max(feature_delta)])
+q6_last <- summarize(group_by(alsfrsfull,SubjectID),q6_last=Q6_Dressing_and_Hygiene[feature_delta==max(feature_delta)])
+q7_last <- summarize(group_by(alsfrsfull,SubjectID),q7_last=Q7_Turning_in_Bed[feature_delta==max(feature_delta)])
+q8_last <- summarize(group_by(alsfrsfull,SubjectID),q8_last=Q8_Walking[feature_delta==max(feature_delta)])
+q9_last <- summarize(group_by(alsfrsfull,SubjectID),q9_last=Q9_Climbing_Stairs[feature_delta==max(feature_delta)])
+q10_last <- summarize(group_by(alsfrsfull,SubjectID),q10_last=Q10R[feature_delta==max(feature_delta)])
+total_last<- summarize(group_by(alsfrsfull,SubjectID),total_last=ALSFRS_TotalR[feature_delta==max(feature_delta)])
+
+merge_last <- q1_last %>% merge(q2_last) %>% merge(q3_last) %>% merge(q4_last) %>% merge(q5_last) %>% merge(q6_last) %>% merge(q7_last) %>% merge(q8_last) %>% merge(q9_last) %>% merge(q10_last) %>% merge(total_last)
 
 
-# Movement ???존분?????? ?????? table 만들??? : movement_survival_sub가 최종
+
+# Movement 생존분석 table : movement_survival_sub가 최종
 group<-group_by(alsfrsfull,SubjectID)
+time_rank <- mutate(group,rank=rank(feature_delta))
+time_rank <- as.data.frame(time_rank)
 movement_isevent <- summarize(group,any(Movement==1))
-movement_whenevent1 <- summarize(group, min(feature_delta[which(Movement==1)]),min(feature_delta))
-movement_whenevent2 <- summarize(group, max(feature_delta[which(Movement==0)]),min(feature_delta))
+movement_whenevent1 <- summarize(group_by(time_rank,SubjectID),ifelse(min(rank[which(Movement==1)])==1,-Inf, (1 *min(feature_delta[which(Movement==1)])+0*feature_delta[rank==min(rank[which(Movement==1)])-1])))
+movement_whenevent2 <- summarize(group, max(feature_delta[which(Movement==0)]))
 movement_whenevent <- vector()
-movement_deltaleast <- vector()
 for (i in 1:length(movement_isevent[[2]])){
   if (movement_isevent[[2]][i]==0) {
     movement_whenevent[i]=movement_whenevent2[[2]][i]
-    movement_deltaleast[i]=movement_whenevent2[[3]][i]
   }
   else if (movement_isevent[[2]][i]==1){
     movement_whenevent[i]=movement_whenevent1[[2]][i]
-    movement_deltaleast[i]=movement_whenevent1[[3]][i]
   }
 }
-movement_survival <- data.frame("SubjectID"=movement_isevent[[1]],movement_whenevent,movement_deltaleast,"movement_isevent"=movement_isevent[[2]])
+movement_survival <- data.frame("SubjectID"=movement_isevent[[1]],movement_whenevent,"movement_isevent"=movement_isevent[[2]])
 movement_survival=movement_survival[order(movement_survival$movement_whenevent),]
 
-# left-censoring ??????
-movement_survival <- droplevels(subset(movement_survival,!(movement_isevent & movement_whenevent==movement_deltaleast)))
-movement_survival <- subset(movement_survival,select=-movement_deltaleast)
+## left-censoring 제외
+movement_survival <- droplevels(subset(movement_survival,movement_whenevent!=-Inf))
 
 
-# 0???????????? censoring??? ?????? ??????.???마도 ????????????....????????? 콕스??? ????????? parametric??? ??????. 그래??? ?????? ??????.
+##  >=92로 할지 >=92으로 할지 추후 결정
 movement_survival_sub <-droplevels(filter(movement_survival,movement_whenevent>=92))
 
 
-# ????????? 그냥 ??????  그려??? K-M plot
+## K-M plot
 movement.survfit=survfit(Surv(movement_whenevent,movement_isevent==1)~1,data=movement_survival_sub)
-plot(movement.survfit,xlab="Time",ylab="Proportion surviving")
+plot(movement.survfit,xlab="Time",ylab="Proportion non-loss of function",main="Movement")
 
-# Swallowing ???존분?????? ?????? table 만들??? : swallowing_survival_sub가 최종
+
+# Swallowing : swallowing_survival_sub가 최종
 group<-group_by(alsfrsfull,SubjectID)
+time_rank <- mutate(group,rank=rank(feature_delta))
+time_rank <- as.data.frame(time_rank)
 swallowing_isevent <- summarize(group,any(Swallowing==1))
-swallowing_whenevent1 <- summarize(group, min(feature_delta[which(Swallowing==1)]),min(feature_delta))
-swallowing_whenevent2 <- summarize(group, max(feature_delta[which(Swallowing==0)]),min(feature_delta))
+swallowing_whenevent1 <- summarize(group_by(time_rank,SubjectID),ifelse(min(rank[which(Swallowing==1)])==1,-Inf,(1 *min(feature_delta[which(Swallowing==1)])+0*feature_delta[rank==min(rank[which(Swallowing==1)])-1])))
+swallowing_whenevent2 <- summarize(group, max(feature_delta[which(Swallowing==0)]))
 swallowing_whenevent <- vector()
-swallowing_deltaleast <- vector()
 for (i in 1:length(swallowing_isevent[[2]])){
   if (swallowing_isevent[[2]][i]==0) {
     swallowing_whenevent[i]=swallowing_whenevent2[[2]][i]
-    swallowing_deltaleast[i]=swallowing_whenevent2[[3]][i]
   }
   else if (swallowing_isevent[[2]][i]==1){
     swallowing_whenevent[i]=swallowing_whenevent1[[2]][i]
-    swallowing_deltaleast[i]=swallowing_whenevent1[[3]][i]
   }
 }
-swallowing_survival <- data.frame("SubjectID"=swallowing_isevent[[1]],swallowing_whenevent,swallowing_deltaleast,"swallowing_isevent"=swallowing_isevent[[2]])
+swallowing_survival <- data.frame("SubjectID"=swallowing_isevent[[1]],swallowing_whenevent,"swallowing_isevent"=swallowing_isevent[[2]])
 swallowing_survival=swallowing_survival[order(swallowing_survival$swallowing_whenevent),]
 
-# left-censoring ??????
-swallowing_survival <- droplevels(subset(swallowing_survival,!(swallowing_isevent & swallowing_whenevent==swallowing_deltaleast)))
-swallowing_survival <- subset(swallowing_survival,select=-swallowing_deltaleast)
+swallowing_survival <- droplevels(subset(swallowing_survival,swallowing_whenevent!=-Inf))
 
 
-# 0???????????? censoring??? ?????? ??????.???마도 ????????????....????????? 콕스??? ????????? parametric??? ??????. 그래??? ?????? ??????.
 swallowing_survival_sub <-droplevels(filter(swallowing_survival,swallowing_whenevent>=92))
 
-
-# ????????? 그냥 ??????  그려??? K-M plot
 swallowing.survfit=survfit(Surv(swallowing_whenevent,swallowing_isevent==1)~1,data=swallowing_survival_sub)
-plot(swallowing.survfit,xlab="Time",ylab="Proportion surviving")
+plot(swallowing.survfit,xlab="Time",ylab="Proportion non-loss of function",main="Swallowing")
 
-# Communicating ???존분?????? ?????? table 만들??? : communicating_survival_sub가 최종
+
+
+# Communicating  : communicating_survival_sub가 최종
 group<-group_by(alsfrsfull,SubjectID)
+time_rank <- mutate(group,rank=rank(feature_delta))
+time_rank <- as.data.frame(time_rank)
 communicating_isevent <- summarize(group,any(Communicating==1))
-communicating_whenevent1 <- summarize(group, min(feature_delta[which(Communicating==1)]),min(feature_delta))
-communicating_whenevent2 <- summarize(group, max(feature_delta[which(Communicating==0)]),min(feature_delta))
+communicating_whenevent1 <- summarize(group_by(time_rank,SubjectID), ifelse(min(rank[which(Communicating==1)])==1,-Inf,(1 *min(feature_delta[which(Communicating==1)])+0*feature_delta[rank==min(rank[which(Communicating==1)])-1])))
+communicating_whenevent2 <- summarize(group, max(feature_delta[which(Communicating==0)]))
 communicating_whenevent <- vector()
-communicating_deltaleast <- vector()
 for (i in 1:length(communicating_isevent[[2]])){
   if (communicating_isevent[[2]][i]==0) {
     communicating_whenevent[i]=communicating_whenevent2[[2]][i]
-    communicating_deltaleast[i]=communicating_whenevent2[[3]][i]
   }
   else if (communicating_isevent[[2]][i]==1){
     communicating_whenevent[i]=communicating_whenevent1[[2]][i]
-    communicating_deltaleast[i]=communicating_whenevent1[[3]][i]
   }
 }
-communicating_survival <- data.frame("SubjectID"=communicating_isevent[[1]],communicating_whenevent,communicating_deltaleast,"communicating_isevent"=communicating_isevent[[2]])
+communicating_survival <- data.frame("SubjectID"=communicating_isevent[[1]],communicating_whenevent,"communicating_isevent"=communicating_isevent[[2]])
 communicating_survival=communicating_survival[order(communicating_survival$communicating_whenevent),]
 
-# left-censoring ??????
-communicating_survival <- droplevels(subset(communicating_survival,!(communicating_isevent & communicating_whenevent==communicating_deltaleast)))
-communicating_survival <- subset(communicating_survival,select=-communicating_deltaleast)
-
-
-# 0???????????? censoring??? ?????? ??????.???마도 ????????????....????????? 콕스??? ????????? parametric??? ??????. 그래??? ?????? ??????.
+communicating_survival <- droplevels(subset(communicating_survival,communicating_whenevent!=-Inf))
 communicating_survival_sub <-droplevels(filter(communicating_survival,communicating_whenevent>=92))
 
-
-# ????????? 그냥 ??????  그려??? K-M plot
 communicating.survfit=survfit(Surv(communicating_whenevent,communicating_isevent==1)~1,data=communicating_survival_sub)
-plot(communicating.survfit,xlab="Time",ylab="Proportion surviving")
+plot(communicating.survfit,xlab="Time",ylab="Proportion non-loss of function",main="Communicating")
 
-# breathing ???존분?????? ?????? table 만들??? : breathing_survival_sub가 최종
+# breathing : breathing_survival_sub가 최종
 group<-group_by(alsfrsfull,SubjectID)
+time_rank <- mutate(group,rank=rank(feature_delta))
+time_rank <- as.data.frame(time_rank)
 breathing_isevent <- summarize(group,any(Breathing==1))
-breathing_whenevent1 <- summarize(group, min(feature_delta[which(Breathing==1)]),min(feature_delta))
-breathing_whenevent2 <- summarize(group, max(feature_delta[which(Breathing==0)]),min(feature_delta))
+breathing_whenevent1 <- summarize(group_by(time_rank,SubjectID), ifelse(min(rank[which(Breathing==1)])==1,-Inf,(1 *min(feature_delta[which(Breathing==1)])+0*feature_delta[rank==min(rank[which(Breathing==1)])-1])))
+breathing_whenevent2 <- summarize(group, max(feature_delta[which(Breathing==0)]))
 breathing_whenevent <- vector()
-breathing_deltaleast <- vector()
 for (i in 1:length(breathing_isevent[[2]])){
   if (breathing_isevent[[2]][i]==0) {
     breathing_whenevent[i]=breathing_whenevent2[[2]][i]
-    breathing_deltaleast[i]=breathing_whenevent2[[3]][i]
   }
   else if (breathing_isevent[[2]][i]==1){
     breathing_whenevent[i]=breathing_whenevent1[[2]][i]
-    breathing_deltaleast[i]=breathing_whenevent1[[3]][i]
   }
 }
-breathing_survival <- data.frame("SubjectID"=breathing_isevent[[1]],breathing_whenevent,breathing_deltaleast,"breathing_isevent"=breathing_isevent[[2]])
+breathing_survival <- data.frame("SubjectID"=breathing_isevent[[1]],breathing_whenevent,"breathing_isevent"=breathing_isevent[[2]])
 breathing_survival=breathing_survival[order(breathing_survival$breathing_whenevent),]
 
-# left-censoring ??????
-breathing_survival <- droplevels(subset(breathing_survival,!(breathing_isevent & breathing_whenevent==breathing_deltaleast)))
-breathing_survival <- subset(breathing_survival,select=-breathing_deltaleast)
+breathing_survival <- droplevels(subset(breathing_survival,breathing_whenevent!=-Inf))
 
-
-# 0???????????? censoring??? ?????? ??????.???마도 ????????????....????????? 콕스??? ????????? parametric??? ??????. 그래??? ?????? ??????.
 breathing_survival_sub <-droplevels(filter(breathing_survival,breathing_whenevent>=92))
 
-
-# ????????? 그냥 ??????  그려??? K-M plot
 breathing.survfit=survfit(Surv(breathing_whenevent,breathing_isevent==1)~1,data=breathing_survival_sub)
-plot(breathing.survfit,xlab="Time",ylab="Proportion surviving")
+plot(breathing.survfit,xlab="Time",ylab="Proportion non-loss of function",main="Breathing")
 
 
-# death ???존분?????? ?????? table 만들??? : breathing_survival가 최종
-data.surv_training<-read.delim("surv_response_PROACT_training.txt",sep="|", header=T) 
-data.surv_training2<-read.delim("surv_response_PROACT_training2.txt",sep="|", header=T) 
-data.surv_leaderboard<-read.delim("surv_response_PROACT_leader.txt",sep="|", header=T) 
-data.surv_validation<-read.delim("surv_response_PROACT_validation.txt",sep="|", header=T) 
-death_survival <- rbind(data.surv_training,data.surv_training2,data.surv_leaderboard,data.surv_validation)
+# death : breathing_survival가 최종
+
+#######death_survival <- semi_join(death_survival, alsfrsfull)
 names(death_survival) <- c("SubjectID","when","is")
-death.survfit=survfit(Surv(when,is==1)~1,data=death_survival)
-plot(death.survfit,xlab="Time",ylab="Proportion surviving")
+death_survival_sub <-semi_join(death_survival,alsfrsfull)
+death.survfit=survfit(Surv(when,is==1)~1,data=death_survival_sub)
+plot(death.survfit,xlab="Time",ylab="Proportion surviving", main="Death")
 
 
 # all plot
@@ -240,12 +254,53 @@ lines(communicating.survfit,col="blue",conf.int=FALSE)
 lines(swallowing.survfit,col="red",conf.int=FALSE)
 lines(movement.survfit,col="green",conf.int=FALSE)
 lines(death.survfit,col=6,conf.int=FALSE)
+legend("topright",c("Movement","Swallowing","Communicating","Breathing","Death"),lwd=2,bty="n",col=c("green","red","blue","black",6))
 
 
-legend("topright",c("Movement","Breathing","Swallowing","Communicating","Death"),lwd=2,bty="n",col=c("green","black","red","blue",6))
 
-names(movement_survival_sub) <- c("SubjectID","when","is")
-names(swallowing_survival_sub) <- c("SubjectID","when","is")
-names(communicating_survival_sub) <- c("SubjectID","when","is")
-names(breathing_survival_sub) <- c("SubjectID","when","is")
+##############################  Below is for "informative censoring". May not be used.
+swallowing_survival_sub <- merge(swallowing_survival_sub,death_survival)
+communicating_survival_sub <- merge(communicating_survival_sub,death_survival)
+movement_survival_sub <- merge(movement_survival_sub,death_survival)
+breathing_survival_sub <- merge(breathing_survival_sub,death_survival)
+swallowing_survival_sub <- merge(swallowing_survival_sub,merge_last)
+communicating_survival_sub <- merge(communicating_survival_sub,merge_last)
+movement_survival_sub <- merge(movement_survival_sub,merge_last)
+breathing_survival_sub <- merge(breathing_survival_sub,merge_last)
+death_survival_sub <- merge(death_survival,merge_last)
+ans <- gammaImpute(formula(paste("Surv(breathing_whenevent,breathing_isevent==1)","~",paste(names(breathing_survival_sub)[c(4:16)],collapse="+"))),data=breathing_survival_sub,m=2 , gamma.factor=1,DCO.time=max(breathing_survival_sub$breathing_whenevent))
+b=ExtractSingle(ans,index=1)
+b=b$data
+plot(survfit(Surv(b$impute.time,b$impute.event)~1),xlab="Time",ylab="Proportion non-loss",conf.int=FALSE)
+ans <- gammaImpute(formula(paste("Surv(movement_whenevent,movement_isevent==1)","~",paste(names(movement_survival_sub)[c(4:16)],collapse="+"))),data=movement_survival_sub,m=2 , gamma.factor=0.5,DCO.time=max(movement_survival_sub$movement_whenevent))
+b=ExtractSingle(ans,index=1)
+b=b$data
+lines(survfit(Surv(b$impute.time,b$impute.event)~1),col="green",conf.int=FALSE)
+ans <- gammaImpute(formula(paste("Surv(swallowing_whenevent,swallowing_isevent==1)","~",paste(names(swallowing_survival_sub)[c(4:16)],collapse="+"))),data=swallowing_survival_sub,m=2 , gamma.factor=2,DCO.time=max(swallowing_survival_sub$swallowing_whenevent))
+b=ExtractSingle(ans,index=1)
+b=b$data
+lines(survfit(Surv(b$impute.time,b$impute.event)~1),col="red",conf.int=FALSE)
+ans <- gammaImpute(formula(paste("Surv(communicating_whenevent,communicating_isevent==1)","~",paste(names(communicating_survival_sub)[c(4:16)],collapse="+"))),data=communicating_survival_sub,m=2 , gamma.factor=2,DCO.time=max(communicating_survival_sub$communicating_whenevent))
+b=ExtractSingle(ans,index=1)
+b=b$data
+lines(survfit(Surv(b$impute.time,b$impute.event)~1),col="blue",conf.int=FALSE)
+ans <- gammaImpute(formula(paste("Surv(when,is==1)","~",paste(names(death_survival_sub)[c(4:14)],collapse="+"))),data=death_survival_sub,m=2 , gamma.factor=1,DCO.time=max(death_survival_sub$when))
+b=ExtractSingle(ans,index=1)
+b=b$data
+lines(survfit(Surv(b$impute.time,b$impute.event)~1),col=6 ,conf.int=FALSE)
+legend("topright",c("Movement","Swallowing","Communicating","Breathing","Death"),lwd=2,bty="n",col=c("green","red","blue","black",6))
 
+
+
+rm(a)
+rm(b)
+rm(c)
+rm(d)
+rm(data.alsfrs1)
+rm(group)
+rm(time_rank)
+rm(data.allforms_training)
+rm(data.allforms_training2)
+rm(data.allforms_leaderboard)
+rm(data.allforms_validation)
+gc()

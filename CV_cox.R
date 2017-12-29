@@ -21,12 +21,13 @@ death_merge3 <- merge(death_survival_sub,allpatientsfeature_imputed_scaled,all.x
 death_final_sub<- subset(death_merge3, select=-SubjectID)
 
 
+# 각 domain에서 성능 plot 함수
 cvplot <- function(x1,x2,x3,x4,x5){
-  bbb=data.frame("Domain"=c("Movement","Swallowing","Communicating","Breathing","Death"),
+ bbb=data.frame("Domain"=factor(c("Movement","Swallowing","Communicating","Breathing","Death"),levels=c("Death","Breathing","Communicating","Swallowing","Movement")),
                  "mean"=c(mean(x1),mean(x2),mean(x3),mean(x4),mean(x5)),
                  "inf"=c(mean(x1)-2.262*sd(x1)/sqrt(length(x1)),mean(x2)-2.262*sd(x2)/sqrt(length(x2)),mean(x3)-2.262*sd(x3)/sqrt(length(x3)),mean(x4)-2.262*sd(x4)/sqrt(length(x4)),mean(x5)-2.262*sd(x5)/sqrt(length(x5))),
                  "sup"=c(mean(x1)+2.262*sd(x1)/sqrt(length(x1)),mean(x2)+2.262*sd(x2)/sqrt(length(x2)),mean(x3)+2.262*sd(x3)/sqrt(length(x3)),mean(x4)+2.262*sd(x4)/sqrt(length(x4)),mean(x5)+2.262*sd(x5)/sqrt(length(x5))))
-  ggplot(bbb,aes(x=mean,y=Domain))+geom_errorbarh(bbb, mapping=aes(y=Domain, xmin=inf, xmax=sup),height=0.1)+geom_point(bbb,mapping=aes(y=Domain, x=mean),size=2)+geom_text(bbb,mapping=aes(y=as.numeric(Domain)+0.2,x=mean,label=round(mean,2)))
+ ggplot(bbb,aes(x=mean,y=Domain))+geom_errorbarh(bbb, mapping=aes(y=Domain, xmin=inf, xmax=sup),height=0.2)+geom_point(bbb,mapping=aes(y=Domain, x=mean),size=2)+geom_text(bbb,mapping=aes(y=as.numeric(Domain)+0.3,x=mean,label=round(mean,2)))+ theme(axis.text=element_text(face="bold"),axis.title=element_blank())+scale_y_discrete(expand=c(0.5,0))
   # 2.776, 2.262
 }                       
 

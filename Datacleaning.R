@@ -1,17 +1,5 @@
-
-# data.allforms 이용
+# Adverse Event, Concomitant Medication, ALSFRS 제외한 모든 data 읽기
 data = droplevels(data.allforms[data.allforms$form_name != "ALSFRS" & data.allforms$form_name != "Adverse Event" & data.allforms$form_name != "Concomitant Medication",] )
-
-features_challenge= c("Lymphocytes","Basophils","Monocytes",
-    "Total Cholesterol","Gamma-glutamyltransferase", "CK","height","Red Blood Cells (RBC)",
-    "White Blood Cell (WBC)","Urine Ph","Bicarbonate","if_use_Riluzole",
-    "respiratory_rate","Calcium","Phosphorus","Platelets","Alkaline Phosphatase","bp_diastolic",
-    "bp_systolic","pulse","treatment_group","Hematocrit","Hemoglobin","Chloride","fvc",
-    "fvc_normal","fvc_percent","Potassium","Sodium",
-    "AST(SGOT)","Blood Urea Nitrogen (BUN)","Creatinine","ALT(SGPT)","Bilirubin (Total)",
-    "onset_delta","Age","Gender","onset_site",
-    "Race","weight") 
-
 features=levels(data$feature_name)
 idnum <- vector()
 for (i in features){
@@ -37,13 +25,12 @@ for (i in c("Race","onset_site","Gender","if_use_Riluzole")){
   feature_92[[i]]=databyfeature[[i]][,-c(3,4)]
   names(feature_92[[i]])=c("SubjectID",i)
 }
-feature_92[["Gender"]] <-droplevels(subset(feature_92[["Gender"]],Gender!=""))
-
-feature_92[["Race"]]=droplevels(subset(feature_92[["Race"]],Race!="Unknown"))
-
 feature_92[["treatment_group"]]=droplevels(databyfeature[["treatment_group"]][!is.na(databyfeature[["treatment_group"]]$feature_delta)&databyfeature[["treatment_group"]]$feature_delta<92,])
 feature_92[["treatment_group"]]=feature_92[["treatment_group"]][,-c(3,4)]
 names(feature_92[["treatment_group"]])=c("SubjectID","treatment_group")
+
+feature_92[["Gender"]] <-droplevels(subset(feature_92[["Gender"]],Gender!=""))
+feature_92[["Race"]]=droplevels(subset(feature_92[["Race"]],Race!="Unknown"))
 
 ## numeric
 for (i in c("Age","diag_delta","onset_delta") ){
@@ -59,6 +46,7 @@ dfeat=setdiff(featnames1,sfeat)
 
 # dynamic feature
 ## 우선 ALSFRS form 부터
+## Q1~Q10,total,Multibulbar,Multimotor,Multirespi는 min으로 collapse. MITOS, KINGS는 max로 collapse.
 alsfrs92 <- droplevels(filter(alsfrsfull,feature_delta<92&feature_delta>=0))
 feature_92[["Q1_Speech"]] <- summarize(group_by(alsfrs92,SubjectID),Q1=min(Q1_Speech,na.rm=TRUE))
 feature_92[["Q2_Salivation"]] <- summarize(group_by(alsfrs92,SubjectID),Q2=min(Q2_Salivation,na.rm=TRUE))
@@ -79,7 +67,8 @@ feature_92[["KINGS"]]$KINGS <- factor(feature_92[["KINGS"]]$KINGS,order=TRUE)
 feature_92[["Multibublar"]] <- summarize(group_by(alsfrs92,SubjectID),multibublar=min(multibulbar,na.rm=TRUE))
 feature_92[["Multimotor"]] <- summarize(group_by(alsfrs92,SubjectID),multimotor=min(multimotor,na.rm=TRUE))
 feature_92[["Multirespi"]] <- summarize(group_by(alsfrs92,SubjectID),multirespi=min(multirespi,na.rm=TRUE))
-
+feature_92[["if_R"]] <- summarize(group_by(alsfrs92,SubjectID),if_R=max(if_R,na.rm=TRUE))
+feature_92[["if_R"]]$if_R <- factor(feature_92[["if_R"]]$if_R)
 
 #### 아래는 preslope 만들기
 preslope<-mutate(group_by(alsfrs92,SubjectID),rank=rank(-feature_delta))
@@ -104,13 +93,11 @@ temp[["onsetage"]] <- temp[["onsetage"]][,c("SubjectID","OnsetAge")]
 feature_92[["onsetage"]]=temp[["onsetage"]]
 
 ## 그 밖 feature
-### 먼저 단위 통일 안된 feature 찾기.
+### 먼저 단위 통일 안된 feature 찾기. -> RBC, Absoulte Basophil Count, Albumin
 num_unit <- list()
 for (i in dfeat) {
   num_unit[[i]]=levels(databyfeature[[i]]$feature_unit)
 }
-
-# WBC Protein Platelets Glucose !!?
 
 for (i in dfeat){
   temp[[i]]=droplevels(databyfeature[[i]][!is.na(databyfeature[[i]]$feature_delta)&databyfeature[[i]]$feature_delta<92&databyfeature[[i]]$feature_delta>=0,])
@@ -119,12 +106,16 @@ for (i in dfeat){
 } 
 
 temp[["Red Blood Cells (RBC)"]][temp[["Red Blood Cells (RBC)"]]$feature_unit=="x10E12/L",]$feature_value=temp[["Red Blood Cells (RBC)"]][temp[["Red Blood Cells (RBC)"]]$feature_unit=="x10E12/L",]$feature_value*1000
-
-### 0.01?
 temp[["Absolute Basophil Count"]][temp[["Absolute Basophil Count"]]$feature_unit=="10E12/L",]$feature_value=temp[["Absolute Basophil Count"]][temp[["Absolute Basophil Count"]]$feature_unit=="10E12/L",]$feature_value*0.01
 temp[["Albumin"]]=droplevels(temp[["Albumin"]][temp[["Albumin"]]$feature_unit=="g/L",])
 
+### 변수 하나하나 분포 관찰
+for (i in dfeat)
+{ print (i)
+  hist(temp[[i]]$feature_value,xlab=i)
+}
 
+### 잘못 기입된 것으로 보이는 데이터 수정 혹은 NA 처리
 temp[["Platelets"]][temp[["Platelets"]]$feature_value>1000,]$feature_value=temp[["Platelets"]][temp[["Platelets"]]$feature_value>1000,]$feature_value*0.001
 temp[["Platelets"]][temp[["Platelets"]]$feature_value<1,]$feature_value=temp[["Platelets"]][temp[["Platelets"]]$feature_value<1,]$feature_value*1000
 temp[["Hematocrit"]][temp[["Hematocrit"]]$feature_value<1,]$feature_value=temp[["Hematocrit"]][temp[["Hematocrit"]]$feature_value<1,]$feature_value*100
@@ -140,20 +131,16 @@ temp[["Glucose"]]=droplevels(temp[["Glucose"]][temp[["Glucose"]]$feature_value>1
 temp[["Absolute Basophil Count"]]=droplevels(temp[["Absolute Basophil Count"]][temp[["Absolute Basophil Count"]]$feature_value<0.3,])
 temp[["Hemoglobin"]]=droplevels(temp[["Hemoglobin"]][temp[["Hemoglobin"]]$feature_value>50,])
 
-for (i in dfeat)
-{ print (i)
-  hist(temp[[i]]$feature_value,xlab=i)
-}
 
 
+### alsfrs가 아닌 dynamic feature 경우 평균으로 collapse
 for (i in dfeat){
   feature_92[[i]]=summarize(group_by(temp[[i]],SubjectID),mean(feature_value))
   names(feature_92[[i]])=c("SubjectID",i)
   } 
 
-#feature_92[["ALSslope"]]=data.ALSslope
 
-## 63 variables fullmerge!!! 
+### 띄어쓰기 있는 변수들 이름 수정
 names(feature_92[["Red Blood Cells (RBC)"]])=c("SubjectID","RBC")
 names(feature_92[["Absolute Basophil Count"]])=c("SubjectID","Abasophil")
 names(feature_92[["Absolute Eosinophil Count"]])=c("SubjectID","Aeosinophil")
@@ -170,17 +157,11 @@ names(feature_92[["Urine Ph"]])=c("SubjectID","Urine_ph")
 names(feature_92[["White Blood Cell (WBC)"]])=c("SubjectID","WBC")
 names(feature_92[["Gamma-glutamyltransferase"]])=c("SubjectID","GGT")
 
+
+# 모든 variables fullmerge!!! 
 a=feature_92[[1]]
 for (i in 2:length(feature_92)){
   print(i)
   a=merge(a, feature_92[[i]],all=TRUE)
 }
 fullfeature=a
-
-rm(data)
-rm(data.allforms)
-rm(idnum)
-rm(databyfeature)
-rm(feature_92)
-rm(alsfrs92)
-gc()

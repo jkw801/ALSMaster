@@ -11,8 +11,8 @@ manyvariables=missing[missing<0.3]
 allpatientsfeature_manyvariables <- allpatientsfeature[,names(manyvariables)]
 
 # divide variables into categorical and numerical
-imputedcategorical=allpatientsfeature_manyvariables[,c("Race","onset_site","Gender","if_use_Riluzole","treatment_group","MITOS","KINGS")]
-numericalfeatures=setdiff(names(manyvariables),c("SubjectID","Race","onset_site","Gender","if_use_Riluzole","treatment_group","MITOS","KINGS"))
+imputedcategorical=allpatientsfeature_manyvariables[,c("Race","onset_site","Gender","if_use_Riluzole","treatment_group","MITOS","KINGS","if_R")]
+numericalfeatures=setdiff(names(manyvariables),c("SubjectID","Race","onset_site","Gender","if_use_Riluzole","treatment_group","MITOS","KINGS","if_R"))
 
 # Make 'Mode' function
 Mode <- function(x){
@@ -23,7 +23,7 @@ Mode <- function(x){
 
 
 # Impute categorical variable by Mode
-for(i in c("Race","onset_site","Gender","if_use_Riluzole","treatment_group","MITOS","KINGS")){
+for(i in c("Race","onset_site","Gender","if_use_Riluzole","treatment_group","MITOS","KINGS","if_R")){
   imputedcategorical[i][is.na(imputedcategorical[i])]=Mode(imputedcategorical[i])
 }
 
@@ -56,10 +56,4 @@ for(i in colnames(imputednumericalmatrix)){
 allpatientsfeature_imputed_scaled=data.frame("SubjectID"=allpatientsfeature$SubjectID,imputedcategorical,scalednumericalmatrix)
 allpatientsfeature_imputed_nonscaled=data.frame("SubjectID"=allpatientsfeature$SubjectID,imputedcategorical,nonscalednumericalmatrix)
 allpatientsfeature_nonimputed=allpatientsfeature_manyvariables
-  
-rm(scalednumericalmatrix)
-rm(imputednumericalmatrix)
-rm(allpatients)
-rm(allpatientsfeature)
-rm(fullfeature)
-gc()
+ 

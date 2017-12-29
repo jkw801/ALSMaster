@@ -21,7 +21,7 @@ breathing_final_sub<- subset(breathing_merge3, select=-SubjectID)
 death_merge3 <- merge(death_survival_sub,allpatientsfeature_imputed_nonscaled,all.x=TRUE)
 death_final_sub<- subset(death_merge3, select=-SubjectID)
 
-
+# 각 domain에서 성능 plot 함수
 cvplot <- function(x1,x2,x3,x4,x5){
   bbb=data.frame("Domain"=c("Movement","Swallowing","Communicating","Breathing","Death"),
                  "mean"=c(mean(x1),mean(x2),mean(x3),mean(x4),mean(x5)),

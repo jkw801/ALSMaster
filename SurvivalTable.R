@@ -1,21 +1,13 @@
 library(dplyr)
 library(tidyr)
 library(survival)
-library(InformativeCensoring)
-rm(list=ls())
-gc()
+
 # 데이터 read
 data.allforms_training<-read.delim("all_forms_PROACT_training.txt",sep="|", header=T)
 data.allforms_training2<-read.delim("all_forms_PROACT_training2.txt",sep="|", header=T)
 data.allforms_leaderboard<-read.delim("all_forms_PROACT_leaderboard_full.txt",sep="|", header=T)
 data.allforms_validation<-read.delim("all_forms_PROACT_validation_full.txt",sep="|", header=T)
 data.allforms <- rbind(data.allforms_training,data.allforms_training2,data.allforms_leaderboard,data.allforms_validation)
-
-data.ALSslope_training<-read.delim("ALSFRS_slope_PROACT_training.txt",sep="|", header=T) 
-data.ALSslope_training2<-read.delim("ALSFRS_slope_PROACT_training2.txt",sep="|", header=T) 
-data.ALSslope_leaderboard<-read.delim("ALSFRS_slope_PROACT_leaderboard.txt",sep="|", header=T) 
-data.ALSslope_validation<-read.delim("ALSFRS_slope_PROACT_validation.txt",sep="|", header=T) 
-data.ALSslope <-rbind(data.ALSslope_training,data.ALSslope_training2,data.ALSslope_leaderboard,data.ALSslope_validation)
 
 data.surv_training<-read.delim("surv_response_PROACT_training.txt",sep="|", header=T) 
 data.surv_training2<-read.delim("surv_response_PROACT_training2.txt",sep="|", header=T) 
@@ -32,7 +24,7 @@ data.alsfrs1$feature_value <- as.numeric(as.character(data.alsfrs1$feature_value
 data.alsfrs1$feature_delta <- as.numeric(as.character(data.alsfrs1$feature_delta))
 
 
-# 같은 환자가 같은 시점에 2번 측정한 데이터 처리(평균) 
+# ALSFRS에서 같은 환자가 같은 시점에 2번 측정한 데이터 처리 by 평균 
 data.alsfrs1 <- subset(data.alsfrs1,!(SubjectID==137943 & feature_delta==371))
 a <- mutate(group_by(data.alsfrs1,SubjectID,feature_name,feature_delta),n=n())
 b=subset(a,n>1)
@@ -46,11 +38,12 @@ d <- rbind(c,b)
 # spread 형태로 변환
 alsfrsfull <- spread(d,feature_name,feature_value)
 
-
 # feature_delta가 missing이거나 각 item 중 하나라도 missing이 있는 데이터 제외
 alsfrsfull <- droplevels(filter(alsfrsfull, !is.na(feature_delta)))
 alsfrsfull <- droplevels(filter(alsfrsfull,!is.na(Q1_Speech)&!is.na(Q2_Salivation)&!is.na(Q3_Swallowing)&!is.na(Q4_Handwriting)&(!(is.na(Q5a_Cutting_without_Gastrostomy)&is.na(Q5b_Cutting_with_Gastrostomy)))&!is.na(Q6_Dressing_and_Hygiene)&!is.na(Q7_Turning_in_Bed)&!is.na(Q8_Walking)&!is.na(Q9_Climbing_Stairs)&!(is.na(Q10_Respiratory)&(is.na(R1_Dyspnea)|is.na(R2_Orthopnea)|is.na(R3_Respiratory_Insufficiency)))))
 
+# alsfrs인지 alsfrs-r인지 구별하는 변수 추가
+alsfrsfull$if_R <- !is.na(alsfrsfull$R1_Dyspnea) & !is.na(alsfrsfull$R3_Respiratory_Insufficiency)
 
 # Q10과 R1,R2,R3을 적절하게 고려하여 Q10R 점수로 변환
 # Q10R에 따라 ALSFRS_Total도 ALSFRS_TotalR로 변환
@@ -63,7 +56,7 @@ alsfrsfull <- subset(alsfrsfull,select=-c(Q10R1,Q10R3))
 alsfrsfull$ALSFRS_TotalR = alsfrsfull$ALSFRS_Total - alsfrsfull$respiratory + alsfrsfull$Q10R
 
 
-# King's staging 추가
+# King's stage 추가
 alsfrsfull$kingbulbar <- (alsfrsfull$Q1_Speech<4) | (alsfrsfull$Q2_Salivation<4) | (alsfrsfull$Q3_Swallowing<4) 
 alsfrsfull$kingulimb[is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)] <- (alsfrsfull$Q4_Handwriting[is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)]<4)
 alsfrsfull$kingulimb[!is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)] <- (alsfrsfull$Q4_Handwriting[!is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)]<4) | (alsfrsfull$Q5a_Cutting_without_Gastrostomy[!is.na(alsfrsfull$Q5a_Cutting_without_Gastrostomy)]<4)
@@ -109,23 +102,6 @@ Breathing[is.na(Breathing)]=(alsfrsfull$Q10_Respiratory[is.na(Breathing)]<=2)
 ALSMITOS <- Movement + Swallowing + Communicating + Breathing
 alsfrsfull <- mutate(alsfrsfull, Movement,Swallowing,Communicating,Breathing,ALSMITOS)
 
-### temporary 
-q1_last <- summarize(group_by(alsfrsfull,SubjectID),q1_last=Q1_Speech[feature_delta==max(feature_delta)])
-q2_last <- summarize(group_by(alsfrsfull,SubjectID),q2_last=Q2_Salivation[feature_delta==max(feature_delta)])
-q3_last <- summarize(group_by(alsfrsfull,SubjectID),q3_last=Q3_Swallowing[feature_delta==max(feature_delta)])
-q4_last <- summarize(group_by(alsfrsfull,SubjectID),q4_last=Q4_Handwriting[feature_delta==max(feature_delta)])
-q5_last <- summarize(group_by(alsfrsfull,SubjectID),q5_last=Q5_Cutting[feature_delta==max(feature_delta)])
-q6_last <- summarize(group_by(alsfrsfull,SubjectID),q6_last=Q6_Dressing_and_Hygiene[feature_delta==max(feature_delta)])
-q7_last <- summarize(group_by(alsfrsfull,SubjectID),q7_last=Q7_Turning_in_Bed[feature_delta==max(feature_delta)])
-q8_last <- summarize(group_by(alsfrsfull,SubjectID),q8_last=Q8_Walking[feature_delta==max(feature_delta)])
-q9_last <- summarize(group_by(alsfrsfull,SubjectID),q9_last=Q9_Climbing_Stairs[feature_delta==max(feature_delta)])
-q10_last <- summarize(group_by(alsfrsfull,SubjectID),q10_last=Q10R[feature_delta==max(feature_delta)])
-total_last<- summarize(group_by(alsfrsfull,SubjectID),total_last=ALSFRS_TotalR[feature_delta==max(feature_delta)])
-
-merge_last <- q1_last %>% merge(q2_last) %>% merge(q3_last) %>% merge(q4_last) %>% merge(q5_last) %>% merge(q6_last) %>% merge(q7_last) %>% merge(q8_last) %>% merge(q9_last) %>% merge(q10_last) %>% merge(total_last)
-
-
-
 # Movement 생존분석 table : movement_survival_sub가 최종
 group<-group_by(alsfrsfull,SubjectID)
 time_rank <- mutate(group,rank=rank(feature_delta))
@@ -145,13 +121,11 @@ for (i in 1:length(movement_isevent[[2]])){
 movement_survival <- data.frame("SubjectID"=movement_isevent[[1]],movement_whenevent,"movement_isevent"=movement_isevent[[2]])
 movement_survival=movement_survival[order(movement_survival$movement_whenevent),]
 
-## left-censoring 제외
+## left censoring 제외
 movement_survival <- droplevels(subset(movement_survival,movement_whenevent!=-Inf))
 
-
-##  >=92로 할지 >=92으로 할지 추후 결정
+## 92일 이전에 이벤트 발생하였거나 right censoring된 환자 제외
 movement_survival_sub <-droplevels(filter(movement_survival,movement_whenevent>=92))
-
 
 ## K-M plot
 movement.survfit=survfit(Surv(movement_whenevent,movement_isevent==1)~1,data=movement_survival_sub)
@@ -178,7 +152,6 @@ swallowing_survival <- data.frame("SubjectID"=swallowing_isevent[[1]],swallowing
 swallowing_survival=swallowing_survival[order(swallowing_survival$swallowing_whenevent),]
 
 swallowing_survival <- droplevels(subset(swallowing_survival,swallowing_whenevent!=-Inf))
-
 
 swallowing_survival_sub <-droplevels(filter(swallowing_survival,swallowing_whenevent>=92))
 
@@ -207,6 +180,7 @@ communicating_survival <- data.frame("SubjectID"=communicating_isevent[[1]],comm
 communicating_survival=communicating_survival[order(communicating_survival$communicating_whenevent),]
 
 communicating_survival <- droplevels(subset(communicating_survival,communicating_whenevent!=-Inf))
+
 communicating_survival_sub <-droplevels(filter(communicating_survival,communicating_whenevent>=92))
 
 communicating.survfit=survfit(Surv(communicating_whenevent,communicating_isevent==1)~1,data=communicating_survival_sub)
@@ -240,8 +214,6 @@ plot(breathing.survfit,xlab="Time",ylab="Proportion non-loss of function",main="
 
 
 # death : breathing_survival가 최종
-
-#######death_survival <- semi_join(death_survival, alsfrsfull)
 names(death_survival) <- c("SubjectID","when","is")
 death_survival_sub <-semi_join(death_survival,alsfrsfull)
 death.survfit=survfit(Surv(when,is==1)~1,data=death_survival_sub)
@@ -255,52 +227,3 @@ lines(swallowing.survfit,col="red",conf.int=FALSE)
 lines(movement.survfit,col="green",conf.int=FALSE)
 lines(death.survfit,col=6,conf.int=FALSE)
 legend("topright",c("Movement","Swallowing","Communicating","Breathing","Death"),lwd=2,bty="n",col=c("green","red","blue","black",6))
-
-
-
-##############################  Below is for "informative censoring". May not be used.
-swallowing_survival_sub <- merge(swallowing_survival_sub,death_survival)
-communicating_survival_sub <- merge(communicating_survival_sub,death_survival)
-movement_survival_sub <- merge(movement_survival_sub,death_survival)
-breathing_survival_sub <- merge(breathing_survival_sub,death_survival)
-swallowing_survival_sub <- merge(swallowing_survival_sub,merge_last)
-communicating_survival_sub <- merge(communicating_survival_sub,merge_last)
-movement_survival_sub <- merge(movement_survival_sub,merge_last)
-breathing_survival_sub <- merge(breathing_survival_sub,merge_last)
-death_survival_sub <- merge(death_survival,merge_last)
-ans <- gammaImpute(formula(paste("Surv(breathing_whenevent,breathing_isevent==1)","~",paste(names(breathing_survival_sub)[c(4:16)],collapse="+"))),data=breathing_survival_sub,m=2 , gamma.factor=1,DCO.time=max(breathing_survival_sub$breathing_whenevent))
-b=ExtractSingle(ans,index=1)
-b=b$data
-plot(survfit(Surv(b$impute.time,b$impute.event)~1),xlab="Time",ylab="Proportion non-loss",conf.int=FALSE)
-ans <- gammaImpute(formula(paste("Surv(movement_whenevent,movement_isevent==1)","~",paste(names(movement_survival_sub)[c(4:16)],collapse="+"))),data=movement_survival_sub,m=2 , gamma.factor=0.5,DCO.time=max(movement_survival_sub$movement_whenevent))
-b=ExtractSingle(ans,index=1)
-b=b$data
-lines(survfit(Surv(b$impute.time,b$impute.event)~1),col="green",conf.int=FALSE)
-ans <- gammaImpute(formula(paste("Surv(swallowing_whenevent,swallowing_isevent==1)","~",paste(names(swallowing_survival_sub)[c(4:16)],collapse="+"))),data=swallowing_survival_sub,m=2 , gamma.factor=2,DCO.time=max(swallowing_survival_sub$swallowing_whenevent))
-b=ExtractSingle(ans,index=1)
-b=b$data
-lines(survfit(Surv(b$impute.time,b$impute.event)~1),col="red",conf.int=FALSE)
-ans <- gammaImpute(formula(paste("Surv(communicating_whenevent,communicating_isevent==1)","~",paste(names(communicating_survival_sub)[c(4:16)],collapse="+"))),data=communicating_survival_sub,m=2 , gamma.factor=2,DCO.time=max(communicating_survival_sub$communicating_whenevent))
-b=ExtractSingle(ans,index=1)
-b=b$data
-lines(survfit(Surv(b$impute.time,b$impute.event)~1),col="blue",conf.int=FALSE)
-ans <- gammaImpute(formula(paste("Surv(when,is==1)","~",paste(names(death_survival_sub)[c(4:14)],collapse="+"))),data=death_survival_sub,m=2 , gamma.factor=1,DCO.time=max(death_survival_sub$when))
-b=ExtractSingle(ans,index=1)
-b=b$data
-lines(survfit(Surv(b$impute.time,b$impute.event)~1),col=6 ,conf.int=FALSE)
-legend("topright",c("Movement","Swallowing","Communicating","Breathing","Death"),lwd=2,bty="n",col=c("green","red","blue","black",6))
-
-
-
-rm(a)
-rm(b)
-rm(c)
-rm(d)
-rm(data.alsfrs1)
-rm(group)
-rm(time_rank)
-rm(data.allforms_training)
-rm(data.allforms_training2)
-rm(data.allforms_leaderboard)
-rm(data.allforms_validation)
-gc()
